@@ -6,13 +6,13 @@ const p5jsPreviewSrc = new URL(`../preview/index.html`, import.meta.url);
 
 async function saveSketch(filename, srcCode) {
   try {
-    const blob = new Blob([srcCode], { type: 'text/plain' });
-    const file = new File([blob], filename + '.js');
+    const blob = new Blob([srcCode], { type: "text/plain" });
+    const file = new File([blob], filename + ".js");
     const body = new FormData();
     body.append("image", file);
     body.append("subfolder", "p5js");
     body.append("type", "temp");
-    body.append("overwrite", "true");//can also be set to 1
+    body.append("overwrite", "true"); //can also be set to 1
     const resp = await api.fetchApi("/upload/image", {
       method: "POST",
       body,
@@ -27,53 +27,66 @@ async function saveSketch(filename, srcCode) {
   } catch (e) {
     console.log(`Error sending sketch file for saving: ${e}`);
   }
-}//end saveSketch
-
+} //end saveSketch
 
 app.registerExtension({
-
   name: "HYPE_P5JSImage",
 
   getCustomWidgets(app) {
     return {
       P5JS(node, inputName) {
         const d = new Date();
-        const base_filename = d.getUTCFullYear() + "_" + (d.getUTCMonth() + 1) + "_" + d.getUTCDate() + '_';
+        const base_filename =
+          d.getUTCFullYear() +
+          "_" +
+          (d.getUTCMonth() + 1) +
+          "_" +
+          d.getUTCDate() +
+          "_";
 
         const widget = {
           type: "P5JS",
           name: "image",
-          size: [512, 120],
+          size: [512, 512],
           sketchfile: base_filename + Math.floor(Math.random() * 10000), //unique filename for each widget, don't love this... maybe make it a millis based time stamp?
-          iframe: $el("iframe", { width: 400, height: 400, src: p5jsPreviewSrc }),
+          iframe: $el("iframe", {
+            width: 400,
+            height: 400,
+            src: p5jsPreviewSrc,
+          }),
 
           draw(ctx, node, widget_width, y, widget_height) {
-            const [px, py] = node.pos; // node offest
+            const HEADER_HEIGHT = 30;
+            const [px, py] = node.pos; // node offset
             const margin = 10;
-            const [cx, cy] = app.canvas.ds.offset; // node offest
-            const [ix, iy] = [
-              ((cx + px + margin) * app.canvas.ds.scale) + app.bodyLeft.offsetWidth,
-              ((cy + py + margin + 305) * app.canvas.ds.scale) + app.bodyLeft.offsetWidth,
+            const [cx, cy] = app.canvas.ds.offset; // node offset
+
+            let widgetsHeight =
+              node.widgets[1].y + node.widgets[1].computedHeight;
+
+            let [ix, iy] = [
+              (cx + px + margin) * app.canvas.ds.scale +
+                app.bodyLeft.offsetWidth,
+              (cy + py + margin + widgetsHeight) * app.canvas.ds.scale +
+                app.bodyTop.offsetHeight,
             ];
 
-            const 
-              w = widget_width - margin * 2,
-              clientRectBound = ctx.canvas.getBoundingClientRect(),
-              scaleFactorX = clientRectBound.width / ctx.canvas.width,
-              scaleFactorY = clientRectBound.height / ctx.canvas.height,
-              transform = new DOMMatrix().scaleSelf(scaleFactorX, scaleFactorY).multiplySelf(ctx.getTransform()).translateSelf(px, py);
+            let nw = (node.width - margin * 2) * app.canvas.ds.scale;
+            let nh =
+              (node.height - margin * 2 - HEADER_HEIGHT - widgetsHeight) *
+              app.canvas.ds.scale;
 
             Object.assign(this.iframe.style, {
               left: `${ix}px`,
               top: `${iy}px`,
-              width: `${w * transform.a}px`,
-              height: `${w * transform.d}px`,
+              width: `${nw}px`,
+              height: `${nh}px`,
               position: "absolute",
-              border: '1px solid #000',
+              border: "1px solid #000",
               padding: 0,
               margin: 0,
               zIndex: app.graph._nodes.indexOf(node),
-              display: app.canvas.ds.scale > 0.1 ? 'block' : 'none'
+              display: app.canvas.ds.scale > 0.1 ? "block" : "none",
             });
           },
 
@@ -90,11 +103,19 @@ app.registerExtension({
         node.serialize_widgets = false;
 
         //add run sketch
-        const btn = node.addWidget("button", "Run Sketch", "run_p5js_sketch", () => {
-          saveSketch(widget.sketchfile, node.widgets[0].value).then((response) => {
-            widget.iframe.src = p5jsPreviewSrc + "?sketch=" + widget.sketchfile + '.js';
-          });
-        });
+        const btn = node.addWidget(
+          "button",
+          "Run Sketch",
+          "run_p5js_sketch",
+          () => {
+            saveSketch(widget.sketchfile, node.widgets[0].value).then(
+              (response) => {
+                widget.iframe.src =
+                  p5jsPreviewSrc + "?sketch=" + widget.sketchfile + ".js";
+              }
+            );
+          }
+        );
         btn.serializeValue = () => undefined;
 
         return node.addCustomWidget(widget);
@@ -112,8 +133,9 @@ app.registerExtension({
     p5jsWidget.serializeValue = async () => {
       //get the canvas from iframe
       var theFrame = p5jsWidget.iframe;
-      var iframe_doc = theFrame.contentDocument || theFrame.contentWindow.document;
-      var canvas = iframe_doc.getElementById("defaultCanvas0");//TODO: maybe change this to pull all canvas elements and return the first one created
+      var iframe_doc =
+        theFrame.contentDocument || theFrame.contentWindow.document;
+      var canvas = iframe_doc.getElementById("defaultCanvas0"); //TODO: maybe change this to pull all canvas elements and return the first one created
 
       const blob = await new Promise((r) => canvas.toBlob(r));
       const name = `${+new Date()}.png`;
@@ -132,10 +154,9 @@ app.registerExtension({
         throw new Error(err);
       }
       return `p5js/${name} [temp]`;
-    }
+    };
 
     //add the iframe to the bottom of the node
     document.body.appendChild(p5jsWidget.iframe);
-
   },
 });

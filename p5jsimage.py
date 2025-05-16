@@ -27,9 +27,9 @@ class HYPE_P5JSImage(nodes.LoadImage):
                            {
                                "default": "function setup() {\n  createCanvas(512, 512);\n}\n\nfunction draw() {\n  background(220);\n}", 
                                "multiline": True, 
-                               "dynamicPrompts": False,
+                               "dynamicPrompts": False
                             }),
-                "image": ("P5JS", {
+                "image": ("P5JS", { 
                     
                 }),
             },
