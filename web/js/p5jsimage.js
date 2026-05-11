@@ -44,87 +44,52 @@ app.registerExtension({
           d.getUTCDate() +
           "_";
 
-        const widget = {
-          type: "P5JS",
-          name: "image",
-          size: [512, 512],
-          sketchfile: base_filename + Math.floor(Math.random() * 10000), //unique filename for each widget, don't love this... maybe make it a millis based time stamp?
-          iframe: $el("iframe", {
-            width: 400,
-            height: 400,
-            src: p5jsPreviewSrc,
-          }),
+        const sketchfile =
+          base_filename + Math.floor(Math.random() * 10000);
 
-          draw(ctx, node, widget_width, y, widget_height) {
-            const HEADER_HEIGHT = 30;
-            const [px, py] = node.pos; // node offset
-            const margin = 10;
-            const [cx, cy] = app.canvas.ds.offset; // node offset
-
-            let widgetsHeight =
-              node.widgets[1].y + node.widgets[1].computedHeight;
-
-            let [ix, iy] = [
-              (cx + px + margin) * app.canvas.ds.scale +
-                app.bodyLeft.offsetWidth,
-              (cy + py + margin + widgetsHeight) * app.canvas.ds.scale +
-                app.bodyTop.offsetHeight,
-            ];
-
-            let nw = (node.width - margin * 2) * app.canvas.ds.scale;
-            let nh =
-              (node.height - margin * 2 - HEADER_HEIGHT - widgetsHeight) *
-              app.canvas.ds.scale;
-
-            Object.assign(this.iframe.style, {
-              left: `${ix}px`,
-              top: `${iy}px`,
-              width: `${nw}px`,
-              height: `${nh}px`,
-              position: "absolute",
-              border: "1px solid #000",
-              padding: 0,
-              margin: 0,
-              zIndex: app.graph._nodes.indexOf(node),
-              display: app.canvas.ds.scale > 0.1 ? "block" : "none",
-            });
+        const iframe = $el("iframe", {
+          src: p5jsPreviewSrc,
+          style: {
+            border: "1px solid #000",
+            width: "100%",
+            height: "100%",
+            padding: 0,
+            margin: 0,
+            display: "block",
+            background: "#222",
           },
-
-          computeSize(width) {
-            return [512, 512];
-          },
-        };
-
-        node.onRemoved = function () {
-          node.widgets[0].inputEl.remove();
-          widget.iframe.remove();
-        };
+        });
 
         node.serialize_widgets = false;
 
-        //add run sketch
+        //add run sketch button first so it sits above the iframe
         const btn = node.addWidget(
           "button",
           "Run Sketch",
           "run_p5js_sketch",
           () => {
-            saveSketch(widget.sketchfile, node.widgets[0].value).then(
-              (response) => {
-                widget.iframe.src =
-                  p5jsPreviewSrc + "?sketch=" + widget.sketchfile + ".js";
-              }
-            );
+            saveSketch(sketchfile, node.widgets[0].value).then(() => {
+              iframe.src = p5jsPreviewSrc + "?sketch=" + sketchfile + ".js";
+            });
           }
         );
         btn.serializeValue = () => undefined;
 
-        return node.addCustomWidget(widget);
+        // addDOMWidget mounts the iframe inside ComfyUI's DOM-widget container,
+        // which is automatically positioned/scaled by ComfyUI as the canvas pans and zooms.
+        const widget = node.addDOMWidget("image", "P5JS", iframe, {
+          hideOnZoom: false,
+          getMinHeight: () => 400,
+        });
+        widget.sketchfile = sketchfile;
+
+        return widget;
       },
     };
   },
 
   nodeCreated(node) {
-    if ((node.type, node.constructor.comfyClass !== "HYPE_P5JSImage")) return;
+    if (node.constructor.comfyClass !== "HYPE_P5JSImage") return;
 
     //get the p5js widget
     const p5jsWidget = node.widgets.find((w) => w.name === "image");
@@ -132,10 +97,10 @@ app.registerExtension({
     //add serialize method here....
     p5jsWidget.serializeValue = async () => {
       //get the canvas from iframe
-      var theFrame = p5jsWidget.iframe;
-      var iframe_doc =
+      const theFrame = p5jsWidget.element;
+      const iframe_doc =
         theFrame.contentDocument || theFrame.contentWindow.document;
-      var canvas = iframe_doc.getElementById("defaultCanvas0"); //TODO: maybe change this to pull all canvas elements and return the first one created
+      const canvas = iframe_doc.getElementById("defaultCanvas0"); //TODO: maybe change this to pull all canvas elements and return the first one created
 
       const blob = await new Promise((r) => canvas.toBlob(r));
       const name = `${+new Date()}.png`;
@@ -155,8 +120,5 @@ app.registerExtension({
       }
       return `p5js/${name} [temp]`;
     };
-
-    //add the iframe to the bottom of the node
-    document.body.appendChild(p5jsWidget.iframe);
   },
 });
