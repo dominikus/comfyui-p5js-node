@@ -29,6 +29,30 @@ async function saveSketch(filename, srcCode) {
   }
 } //end saveSketch
 
+// Poll the iframe document until p5.js has created its canvas, or time out.
+async function waitForCanvas(iframe, timeoutMs = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    const canvas = doc && doc.getElementById("defaultCanvas0");
+    if (canvas && canvas.width > 0 && canvas.height > 0) {
+      // Give draw() a moment to render its first frame before we read pixels.
+      await new Promise((r) => setTimeout(r, 200));
+      return canvas;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return null;
+}
+
+// Save the current script and (re)load it into the iframe so p5.js runs it.
+// Resolves with the rendered canvas once it exists.
+async function runSketch(iframe, sketchfile, srcCode) {
+  await saveSketch(sketchfile, srcCode);
+  iframe.src = p5jsPreviewSrc + "?sketch=" + sketchfile + ".js";
+  return waitForCanvas(iframe);
+}
+
 // Lazy-load CodeMirror 6 (only once, shared across all nodes).
 let codeMirrorPromise = null;
 function loadCodeMirror() {
@@ -212,9 +236,7 @@ app.registerExtension({
           "Run Sketch",
           "run_p5js_sketch",
           () => {
-            saveSketch(sketchfile, node.widgets[0].value).then(() => {
-              iframe.src = p5jsPreviewSrc + "?sketch=" + sketchfile + ".js";
-            });
+            runSketch(iframe, sketchfile, node.widgets[0].value);
           }
         );
         btn.serializeValue = () => undefined;
@@ -252,7 +274,23 @@ app.registerExtension({
       const theFrame = p5jsWidget.element;
       const iframe_doc =
         theFrame.contentDocument || theFrame.contentWindow.document;
-      const canvas = iframe_doc.getElementById("defaultCanvas0"); //TODO: maybe change this to pull all canvas elements and return the first one created
+      let canvas = iframe_doc.getElementById("defaultCanvas0"); //TODO: maybe change this to pull all canvas elements and return the first one created
+
+      // If the sketch has never been run (no canvas yet), run it now so the
+      // workflow still works without the user clicking "Run Sketch" first.
+      if (!canvas) {
+        const scriptWidget = node.widgets.find((w) => w.name === "script");
+        canvas = await runSketch(
+          theFrame,
+          p5jsWidget.sketchfile,
+          scriptWidget ? scriptWidget.value : node.widgets[0].value,
+        );
+        if (!canvas) {
+          const err = "p5.js sketch did not produce a canvas";
+          alert(err);
+          throw new Error(err);
+        }
+      }
 
       const blob = await new Promise((r) => canvas.toBlob(r));
       const name = `${+new Date()}.png`;
