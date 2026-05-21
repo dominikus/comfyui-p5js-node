@@ -147,7 +147,7 @@ async function attachCodeMirror(widget) {
   const container = document.createElement("div");
   container.style.cssText =
     "width: 100%; height: 100%; min-height: 200px; overflow: hidden;" +
-    "box-sizing: border-box; border-radius: 4px;";
+    "box-sizing: border-box; border-radius: 4px; cursor: text;";
 
   target.parentNode.replaceChild(container, target);
 
@@ -190,6 +190,13 @@ async function attachCodeMirror(widget) {
     },
     true,
   );
+
+  // Clicks inside the editor should place the text caret — not start a node
+  // drag. Let CodeMirror handle the event, then stop it bubbling out to
+  // ComfyUI's canvas.
+  for (const evt of ["pointerdown", "mousedown", "dblclick"]) {
+    container.addEventListener(evt, (e) => e.stopPropagation());
+  }
 
   widget._cmEditor = editor;
 }
